@@ -1,0 +1,11 @@
+{
+  "name": "exact-money",
+  "version": "0.1.0",
+  "description": "Currency amounts backed by integer minor units, with human-readable and JSON formatting.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "license": "MIT",
+  "author": "ryan-t90",
+  "keywords": ["currency", "money", "bigint", "formatting"]
+}
