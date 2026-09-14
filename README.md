@@ -68,9 +68,11 @@ usd.add(eur); // throws: currency mismatch: USD vs EUR
 ## Status
 
 Early skeleton. The `Money` and `format` APIs above are real and working,
-but the currency table is short and `multiply` rounds through a float
-intermediate, which is fine for a tax rate but not for chained rate
-calculations. See the roadmap in project notes for what's next.
+and the currency table covers the common ISO 4217 codes, but `multiply`
+still rounds through a float intermediate, which is fine for a tax rate but
+not for chained rate calculations, and there's no way yet to split an amount
+across N parts without losing minor units. See the roadmap in project notes
+for what's next.
 
 ## License
 
