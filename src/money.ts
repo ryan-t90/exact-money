@@ -49,6 +49,58 @@ export class Money {
     return new Money(BigInt(rounded), this.currency);
   }
 
+  // Splits the amount into shares proportional to `ratios` (e.g. [1, 1, 1]
+  // for an even three-way split, [2, 3, 5] for a weighted one) without
+  // losing or fabricating minor units. Ratios must be non-negative integers
+  // rather than floats: a fractional ratio would just reintroduce the
+  // rounding problem this library exists to avoid.
+  //
+  // Integer division truncates each share toward zero, which leaves up to
+  // `ratios.length - 1` minor units unassigned. Those are handed out one at
+  // a time, round-robin, to the parts with a nonzero ratio, so the shares
+  // always sum back to exactly this amount and no single part absorbs a
+  // disproportionate leftover.
+  allocate(ratios: readonly number[]): Money[] {
+    if (ratios.length === 0) {
+      throw new Error('allocate requires at least one ratio');
+    }
+    for (const ratio of ratios) {
+      if (!Number.isInteger(ratio) || ratio < 0) {
+        throw new Error(`allocate ratios must be non-negative integers, got ${ratio}`);
+      }
+    }
+    const total = ratios.reduce((sum, ratio) => sum + ratio, 0);
+    if (total === 0) {
+      throw new Error('allocate ratios must not all be zero');
+    }
+    const totalUnits = BigInt(total);
+    let remaining = this.minorUnits;
+    const shares = ratios.map((ratio) => {
+      const share = (this.minorUnits * BigInt(ratio)) / totalUnits;
+      remaining -= share;
+      return share;
+    });
+    let i = 0;
+    while (remaining !== 0n) {
+      if (ratios[i] > 0) {
+        const step = remaining > 0n ? 1n : -1n;
+        shares[i] += step;
+        remaining -= step;
+      }
+      i = (i + 1) % shares.length;
+    }
+    return shares.map((share) => new Money(share, this.currency));
+  }
+
+  // Convenience wrapper around allocate() for the common case of splitting
+  // into equal parts, e.g. dividing a restaurant bill among diners.
+  divide(parts: number): Money[] {
+    if (!Number.isInteger(parts) || parts <= 0) {
+      throw new Error(`divide requires a positive integer number of parts, got ${parts}`);
+    }
+    return this.allocate(new Array(parts).fill(1));
+  }
+
   compare(other: Money): -1 | 0 | 1 {
     this.assertSameCurrency(other);
     if (this.minorUnits < other.minorUnits) return -1;

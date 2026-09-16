@@ -57,6 +57,27 @@ Money.fromDecimalString('500', 'JPY').toDecimalString(); // "500"
 Money.fromDecimalString('1.500', 'BHD').toDecimalString(); // "1.500"
 ```
 
+### Splitting an amount without losing minor units
+
+Dividing `10.00` three ways as a float gives `3.3333...`; naively rounding
+each share to `3.33` only accounts for `9.99`. `divide` and `allocate` fix
+that by distributing the leftover minor units across the shares instead of
+dropping them:
+
+```ts
+const bill = Money.fromDecimalString('10.00', 'USD');
+bill.divide(3).map((m) => m.toDecimalString());
+// ["3.34", "3.33", "3.33"]
+
+const total = Money.fromDecimalString('100', 'USD');
+total.allocate([2, 3, 5]).map((m) => m.toDecimalString());
+// ["20.00", "30.00", "50.00"]
+```
+
+`allocate` ratios must be non-negative integers, not floats, since a
+fractional ratio would just reintroduce the rounding problem this library
+exists to avoid.
+
 ### Arithmetic guards against mixing currencies
 
 ```ts
@@ -67,12 +88,12 @@ usd.add(eur); // throws: currency mismatch: USD vs EUR
 
 ## Status
 
-Early skeleton. The `Money` and `format` APIs above are real and working,
-and the currency table covers the common ISO 4217 codes, but `multiply`
-still rounds through a float intermediate, which is fine for a tax rate but
-not for chained rate calculations, and there's no way yet to split an amount
-across N parts without losing minor units. See the roadmap in project notes
-for what's next.
+Early skeleton. The `Money`, `format`, and `allocate`/`divide` APIs above are
+real and working, and the currency table covers the common ISO 4217 codes,
+but `multiply` still rounds through a float intermediate, which is fine for
+a tax rate but not for chained rate calculations. There's also no parser for
+formatted strings back into `Money`, and no currency conversion yet. See the
+roadmap in project notes for what's next.
 
 ## License
 
