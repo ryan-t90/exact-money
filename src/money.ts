@@ -38,15 +38,18 @@ export class Money {
     return new Money(-this.minorUnits, this.currency);
   }
 
-  // Rounds to the nearest minor unit. Fine for a tax rate or a discount
-  // factor; not meant for chains of multiplications where rounding error
-  // needs to be tracked deliberately (see README roadmap).
+  // Every finite double is exactly mantissa * 2^exponent, so it has an exact
+  // rational value even when it looks like a repeating binary fraction
+  // (0.0875 for a tax rate, say). Multiplying minorUnits by that rational
+  // and rounding once at the end avoids the precision loss of going through
+  // `Number(this.minorUnits) * factor` as an intermediate float.
   multiply(factor: number): Money {
     if (!Number.isFinite(factor)) {
       throw new Error(`factor must be finite, got ${factor}`);
     }
-    const rounded = Math.round(Number(this.minorUnits) * factor);
-    return new Money(BigInt(rounded), this.currency);
+    const { numerator, denominator } = decomposeDouble(factor);
+    const rounded = divideRoundHalfAwayFromZero(this.minorUnits * numerator, denominator);
+    return new Money(rounded, this.currency);
   }
 
   // Splits the amount into shares proportional to `ratios` (e.g. [1, 1, 1]
@@ -136,6 +139,54 @@ export class Money {
       throw new Error(`currency mismatch: ${this.currency} vs ${other.currency}`);
     }
   }
+}
+
+// Decomposes a finite double into an exact numerator/denominator pair such
+// that value === numerator / denominator, with no rounding along the way.
+// The denominator is always a power of two (or 1), since that's the only
+// kind of fraction a binary float can represent exactly; the sign lives in
+// the numerator.
+function decomposeDouble(value: number): { numerator: bigint; denominator: bigint } {
+  if (value === 0) {
+    return { numerator: 0n, denominator: 1n };
+  }
+  const buffer = new ArrayBuffer(8);
+  const view = new DataView(buffer);
+  view.setFloat64(0, value);
+  const high = view.getUint32(0);
+  const low = view.getUint32(4);
+  const sign = high >>> 31 ? -1n : 1n;
+  const exponentBits = (high >>> 20) & 0x7ff;
+  let mantissa = (BigInt(high & 0xfffff) << 32n) | BigInt(low);
+  let exponent: number;
+  if (exponentBits === 0) {
+    // subnormal: no implicit leading bit
+    exponent = -1074;
+  } else {
+    mantissa |= 1n << 52n; // implicit leading bit
+    exponent = exponentBits - 1075; // bias 1023, plus the 52 mantissa bits
+  }
+  const numerator = sign * mantissa;
+  if (exponent >= 0) {
+    return { numerator: numerator << BigInt(exponent), denominator: 1n };
+  }
+  return { numerator, denominator: 1n << BigInt(-exponent) };
+}
+
+// Divides two bigints and rounds the result to the nearest integer, ties
+// rounding away from zero (matching parseDecimalToMinorUnits below).
+// `denominator` must be positive.
+function divideRoundHalfAwayFromZero(numerator: bigint, denominator: bigint): bigint {
+  const quotient = numerator / denominator;
+  const remainder = numerator % denominator;
+  if (remainder === 0n) {
+    return quotient;
+  }
+  const twiceRemainder = (remainder < 0n ? -remainder : remainder) * 2n;
+  if (twiceRemainder >= denominator) {
+    return quotient + (numerator < 0n ? -1n : 1n);
+  }
+  return quotient;
 }
 
 function parseDecimalToMinorUnits(value: string, digits: number): bigint {

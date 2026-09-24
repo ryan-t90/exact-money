@@ -89,11 +89,12 @@ usd.add(eur); // throws: currency mismatch: USD vs EUR
 ## Status
 
 Early skeleton. The `Money`, `format`, and `allocate`/`divide` APIs above are
-real and working, and the currency table covers the common ISO 4217 codes,
-but `multiply` still rounds through a float intermediate, which is fine for
-a tax rate but not for chained rate calculations. There's also no parser for
-formatted strings back into `Money`, and no currency conversion yet. See the
-roadmap in project notes for what's next.
+real and working, and the currency table covers the common ISO 4217 codes.
+`multiply` decomposes its factor into an exact rational instead of going
+through a float intermediate, so a chain of rate calculations only rounds
+once, at the end, rather than accumulating error at each step. There's still
+no parser for formatted strings back into `Money`, and no currency
+conversion yet. See the roadmap in project notes for what's next.
 
 ## License
 
